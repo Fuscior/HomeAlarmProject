@@ -8,11 +8,15 @@ libs used:
 WiFi.h: github.com/arduino-libraries/WiFi
 
 Time.h: default c lib: www.tutorialspoint.com/c_standard_library/time_h.htm
+
 LiquidCrystal.h: github.com/arduino-libraries/LiquidCrystal
 
 LiquidCrystal_I2C.h: github.com/fdebrabander/Arduino-LiquidCrystal-I2C-library
+
 RTClib.h: github.com/adafruit/RTClib
+
 Keypad.h: github.com/Chris--A/Keypad
+
 FS.h: github.com/esp8266/Arduino/blob/master/cores/esp8266/FS.h
 SD.h: github.com/arduino-libraries/SD
 SPI.h: github.com/PaulStoffregen/SPI/blob/master/SPI.h
