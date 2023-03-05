@@ -17,7 +17,7 @@ RTClib.h: github.com/adafruit/RTClib
 
 Keypad.h: github.com/Chris--A/Keypad
 
-FS.h: github.com/esp8266/Arduino/blob/master/cores/esp8266/FS.h /n \n
+FS.h: github.com/esp8266/Arduino/blob/master/cores/esp8266/FS.h 
 SD.h: github.com/arduino-libraries/SD
 SPI.h: github.com/PaulStoffregen/SPI/blob/master/SPI.h
 esp_now.h: github.com/espressif/esp-idf/blob/master/components/esp_wifi/include/esp_now.h
