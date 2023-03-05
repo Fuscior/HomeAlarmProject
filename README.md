@@ -1,4 +1,7 @@
 # HomeAlarmProject
+
+https://fuscior.github.io/HomeAlarmProject/index.html
+
 Year3 SETU Project
 
 Online repo of Assigned Home Alarm Project
