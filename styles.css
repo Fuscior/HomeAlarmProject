@@ -18,7 +18,7 @@ ul {
 li {
     float: left;
     display: inline;
-    border-right: 1px solid #a30808;
+    border-right: 1px solid #b3b3b3;
   }
   
 li a {
@@ -35,4 +35,4 @@ li a:hover:not(.active) {
 
 li:last-child {
     border-right: none;
-}
+  }
