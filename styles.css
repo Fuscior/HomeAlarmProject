@@ -15,24 +15,24 @@ ul {
     width: 100%;
   }
   
-  li {
+li {
     float: left;
     display: inline;
-    border-right: 2px solid #a30808;
+    border-right: 1px solid #a30808;
   }
   
-  li a {
+li a {
     display: block;
     color: white;
     text-align: center;
     padding: 14px 16px;
     text-decoration: none;
-  }
+}
   
-  li a:hover:not(.active) {
+li a:hover:not(.active) {
     background-color: #111;
-  }
+}
 
-  li:last-child {
+li:last-child {
     border-right: none;
-  }
+}
