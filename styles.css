@@ -18,6 +18,7 @@ ul {
   li {
     float: left;
     display: inline;
+    border-right: 1px solid #bbb;
   }
   
   li a {
@@ -30,4 +31,8 @@ ul {
   
   li a:hover:not(.active) {
     background-color: #111;
+  }
+
+  li:last-child {
+    border-right: none;
   }
