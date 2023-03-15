@@ -1,10 +1,14 @@
-//local headunit hardware working
-//26/02/2023
-//fixed local logs
+//14-03-2023
+//fixed teligram bug
+//gixed rfid delay glitch
+
+//todo
+//tidy up comments
+//add debug mode to serial loop data
+//complete main alarm logic from main loop in progress
 
 #include <WiFi.h>   //
 #include "time.h"   //NTP 
-#include <LiquidCrystal.h>  //LCD remove
 #include <LiquidCrystal_I2C.h>
 #include <RTClib.h>   //RTC
 #include <Keypad.h>   //Keypad
@@ -17,28 +21,33 @@
 #include <MFRC522.h>  //RFID
 
 //RTC pins
-#define I2C_SDA 38  //pins for RTC
-#define I2C_SCL 48
+#define I2C_SDA 7  //pins for RTC
+#define I2C_SCL 6
 //RFID pins
-#define SS_PIN_RFID 41
-#define RST_PIN_RFID 42
+#define SS_PIN_RFID 9
+#define RST_PIN_RFID 14
 // Telegram BOT Token
 #define BOT_TOKEN "5832604102:AAFt5WHcdB-bh3H6Am-0EVcu6Yao5jcO11Q"
 #define CHAT_IDTEST "5682801801"  //@Y3Project_bot
 
 //WiFi creds
-const char* ssid     = "eir99400545-2.4G";
-const char* password = "rbkw5dyt";
+const char* ssid     = "xxxxxxxx";
+const char* password = "xxxxxxxx";
+bool isWiFi_displayed=false;
+//phone hotspot use in carlow 
+//const char* ssid     = "xxxx";
+//const char* password = "xxxxxxxxxxxxx";
 
 //NTP settings
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 0;
 const int   daylightOffset_sec = 3600;
 int NTPcount=0;
+//RTC
+RTC_DS3231 rtc;
+bool RTC_reajust_overide=true;
 
-//LCD remove old data
-//const int rs = 4, en = 5, d4 = 6, d5 = 7, d6 = 15, d7 = 16;
-//LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+//LCD
 int Row_LCD= 4;
 int Cols_LCD= 20;
 LiquidCrystal_I2C lcd(0x20, Cols_LCD, Row_LCD);   //I2C address, size
@@ -54,14 +63,10 @@ char keys[Row_Keypad][Col_Keypad] = {
   {'7','8','9'},
   {'*','0','#'}
 };
-byte pin_rows[Row_Keypad] = {17, 18, 8, 3};     //row pinouts of the keypad
-byte pin_column[Col_Keypad] = {46, 9, 14};  //column pinouts of the keypad
-
+byte pin_rows[Row_Keypad] = {15, 16, 17, 18};     //row pinouts of the keypad
+byte pin_column[Col_Keypad] = {8, 3, 46};  //column pinouts of the keypad
 Keypad keypad= Keypad(makeKeymap(keys), pin_rows, pin_column, Row_Keypad, Col_Keypad);
-
-//RTC
-RTC_DS3231 rtc;
-
+//ESP-NOW struct
 typedef struct struct_message{
   char Device[32];
   char Location[32];
@@ -72,13 +77,11 @@ typedef struct struct_message{
 } struct_message;
 struct_message moduleData; //moduleData stores info
 
-bool RTC_reajust_overide=true;
-
 //Time&date Timer
 unsigned long previousMillis=0; //used to cycle row1LCD
 bool row1LCD=false; //toggle for row1LCD
 
-//password input
+//password input lcd cursor
 int x_locate;
 //system state
 bool isSet;   
@@ -98,6 +101,8 @@ WiFiClientSecure secured_client;
 UniversalTelegramBot bot(BOT_TOKEN, secured_client);
 unsigned long bot_lasttime; // last time messages' scan has been done
 
+bool alarmAlirtsent=false; //telegram alarm notification flag
+
 //RFID testing 16/02/23
 const int ipaddress[4] = {103, 97, 67, 25};
 const int Passs[8]= {99,99,36,33};
@@ -107,17 +112,15 @@ byte nuidPICC[4] = {0, 0, 0, 0};
 MFRC522::MIFARE_Key key;
 MFRC522 rfid = MFRC522(SS_PIN_RFID, RST_PIN_RFID);
 
-//testing area
+//Arm delay
 int armDelay=500;
-
 //Buzzer
-const int buzzer=47;
+const int buzzer=4;
+//Leds Face plate
+const int state_led=19;
+const int alarm_led=20;
 
-bool alarmAlirtsent=false;
-
-//testing
-
-
+//testing area below
 
 
 
@@ -126,34 +129,28 @@ bool alarmAlirtsent=false;
 void setup() {
   Serial.begin(115200);
   lcd.begin(Cols_LCD, Row_LCD);   //LCD Size
-  Wire.begin(I2C_SDA, I2C_SCL);  //setting SDA & SCL pins RTC
+  Wire.begin(I2C_SCL, I2C_SDA);  //setting SDA & SCL pins RTC
   input_Password.reserve(4);     // maximum input characters is 5(0 to 4) //update to remove hard code
 
   initilize_LCD();
-/*
-  lcd.init();
-  lcd.backlight();
-  lcd.noBlink();
-  lcd.noCursor();
-  */
 
   start_WiFi();
   struct tm init_NTP=F_get_NTP();   //retrive time from NTP server
 
   initilize_telegram_Bot();
 
-  //end_WiFi(); //commented out due to testing Telegram Bot
-
   initilize_RTC();   //check RTC&Seed
-    //Time RTC on Boot
+  //Time RTC on Boot
   struct DateTime RTC_TIME= F_Get_RTC_Time();   //get RTC Time
   if(RTC_reajust_overide){
     Serial.println("RTC check on start up");
     F_Check_RTC_accurcy(init_NTP, RTC_TIME);
     RTC_reajust_overide=false;
   }
+  end_WiFi();
 
   initilize_SD();
+
   F_Retreve_SD_Password();  //currently saved as goable need to UPDATE just get check then clear security!!!!!
 
   initilize_RFID();
@@ -180,16 +177,19 @@ void setup() {
   deleteFile(SD, "/PasswordFile.txt");
   writeFile(SD, "/PasswordFile.txt", testx);
   */
-  //Serial.println(WiFi.macAddress()); get MAC of device
 
   //buzzer testing
   pinMode(buzzer, OUTPUT);
 
+  initilize_LEDS();
+  isWiFi_displayed=true;  //flag two onlt display wifi steps on start up
 }
 //------END-Of-Setup--------------------------------
 //==================================================
 //======Start-of-Main-Loop=========================
 void loop() {
+  WiFi.mode(WIFI_STA);  //Set device as a Wi-Fi Station
+
   struct tm NTP_Time;
   for(NTPcount; NTPcount<1; NTPcount++){
     //struct tm NTP_Time= F_get_NTP();    //get NTP time
@@ -210,7 +210,6 @@ void loop() {
   //testing below
   //to be removed
   //quick testing of alarm logic NEEDS to be built out
-
   if(moduleData.isAlarm == true && isSet == true){
     is_Alarm=true;
     lcd.setCursor(5, 1);
@@ -219,9 +218,10 @@ void loop() {
     lcd.print(moduleData.Location);
 
     if(!alarmAlirtsent){
+      start_WiFi();
       bot.sendMessage(CHAT_IDTEST, "Alarm: ", "");
       bot.sendMessage(CHAT_IDTEST,moduleData.Location, "");
-
+      end_WiFi();
       alarmAlirtsent=true;
     }
   }
@@ -233,66 +233,43 @@ void loop() {
     lcd.print("          ");
   }
 
-
-
-  //display state for testing remove later
-  if(isSet){
-    pinMode(1,OUTPUT);
-    digitalWrite(1,HIGH);
-  }
-  else{
-    pinMode(1,OUTPUT);
-    digitalWrite(1,LOW);
-  }
-
-  if(!isSet){
-    //system unset reset log 
-    isLogSaved=false;
-  }
-  
-  //testing of encrpyt
+  //testing of encrpyt 
+  //working now intagrate
   //F_EncryptPassword();
 
-  //telegram testing working
-  //------------------------------
-  if (millis() - bot_lasttime > BOT_MTBS){  //if over the time past since last check
-    Serial.println("Checking for Telegram message");
-    int numNewMessages = bot.getUpdates(bot.last_message_received + 1); 
+  check_telegram();
 
-    while (numNewMessages){
-      Serial.println("got response");
-      handleNewMessages(numNewMessages);
-      numNewMessages = bot.getUpdates(bot.last_message_received + 1);
-    }
-    bot_lasttime = millis();
-  }
-  //-----------------------------------------
-
-  //rfid Testing working
   readRFID(); //RFID Logic
 
   //buzzer testing working emprove on
- /// tone(buzzer, 1000);
+  //tone(buzzer, 1000);
 
   F_Save_Local_Log();
+  update_leds();
 }
 //======END-of-Main-Loop============================
 //==================================================
 //------Initilize-WiFi------------------------------
 void start_WiFi(void){
   // Connect to Wi-Fi
-  lcd.setCursor(0, 0);
-  lcd.print("Connecting WiFi");
-  //lcd.println(ssid);  //display SSID
+  if(!isWiFi_displayed){
+    lcd.setCursor(0, 0);
+    lcd.print("Connecting WiFi");
+    Serial.println(ssid);  //display SSID
+  }
   WiFi.begin(ssid, password); //start WiFi send SSID & Password
   while (WiFi.status() != WL_CONNECTED) {
-    for(int i=0; i<4; i++){ //protray a sense of progress to the user
-      delay(500);
-      lcd.print(".");
+    if(!isWiFi_displayed){
+      for(int i=0; i<4; i++){ //protray a sense of progress to the user
+        delay(500);
+        lcd.print(".");
+      }
     }
   }
-  lcd.setCursor(0, 1);
-  lcd.print("WiFi connected.");
+  if(!isWiFi_displayed){
+    lcd.setCursor(0, 1);
+    lcd.print("WiFi connected.");
+  }
 }
 //-----End-of-initilize-WiFi-----------------------
 //-----Stop-WiFi-----------------------------------
@@ -301,15 +278,16 @@ void end_WiFi(void){
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   
-  lcd.setCursor(0, 2);
-  lcd.print("WiFi Stopped");
-  delay(2000);
+  if(!isWiFi_displayed){
+    lcd.setCursor(0, 2);
+    lcd.print("WiFi Stopped");
+    delay(2000);
+  }
 }
 //-------End-of-Stop-WiFi----------------------------
 //-------Get/update-NTP-Time------------------------------
 struct tm F_get_NTP(){
   struct tm NTP_time;
-
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
   if(!getLocalTime(&NTP_time)){ //is NTP reached?
@@ -318,8 +296,7 @@ struct tm F_get_NTP(){
     Serial.println("Failed to obtain time");
   //return;
   }
-  //F_Display_NTP_time(NTP_time); //debuging display
-
+  F_Display_NTP_time(NTP_time); //debuging display
   return NTP_time;
 }
 //---------END-Of-Get-NTP-Time-------------------------
@@ -349,13 +326,22 @@ void F_Display_NTP_time(struct tm NTP){
 struct DateTime F_Get_RTC_Time(){
   DateTime now= rtc.now();
 
+  //F_Display_RTC_Time(now);
   return now;  
 }
 //-------END-of-Get-Time-from-RTC----------------------------
 //-------Display-RTC-Time------------------------------------
 void F_Display_RTC_Time(struct DateTime Now){
+  /*
+  Serial.print("RTC Time");
+  Serial.print(Now.hour());
+  Serial.print(":");
+  Serial.print(Now.minute());
+  Serial.print(":");
+  Serial.println(Now.second());
+*/
+  
   lcd.setCursor(2, 0);
-
   if(Now.hour()<10){    //padd a 0 to display if needed
     lcd.print("0");
   }
@@ -376,10 +362,12 @@ void F_Display_RTC_Time(struct DateTime Now){
 //complete
 void F_Check_RTC_accurcy(struct tm ntp_time_check, struct DateTime rtc_time_check){
    
-  if((rtc_time_check.hour() == 0 && rtc_time_check.minute() == 25 && rtc_time_check.second() == 0) || (rtc_time_check.hour() == 13 && rtc_time_check.minute() == 00 && rtc_time_check.second() == 0 || RTC_reajust_overide==true) ){
+  if(((rtc_time_check.hour() == 0 && rtc_time_check.minute() == 25 && rtc_time_check.second() == 0) || (rtc_time_check.hour() == 13 && rtc_time_check.minute() == 00 && rtc_time_check.second() == 0)) || RTC_reajust_overide==true ){
+    start_WiFi();
     ntp_time_check=F_get_NTP();
+    end_WiFi();
 
-    if((rtc_time_check.minute() - ntp_time_check.tm_min) > 15 || (rtc_time_check.minute() - ntp_time_check.tm_min) < -15){
+    if((rtc_time_check.minute() - ntp_time_check.tm_min) > 15 || (rtc_time_check.minute() - ntp_time_check.tm_min) < -15 || RTC_reajust_overide==true ){
       /* //debug 
       Serial.print("NTP time in Accucary Check: ");
       F_Display_RTC_Time(rtc_time_check);
@@ -509,12 +497,15 @@ void F_Password_input(){
         F_clear_LCD_R3();
 
         if(isSet){ 
-          bot.sendMessage(CHAT_IDTEST, "Alarm Has been Armed", "");
-          
           F_Arm_Delay();
+          start_WiFi();          
+          bot.sendMessage(CHAT_IDTEST, "Alarm Has been Armed", "");
+          end_WiFi();
         }
         else{
+          start_WiFi();
           bot.sendMessage(CHAT_IDTEST, "Alarm Has been Disarmed", "");
+          end_WiFi();
         }
       }
       else{
@@ -691,6 +682,7 @@ void F_Save_Local_Log(){
   }
 }
 //---END-of-Local-Logs-Write-to-SD--------------------
+//---Encrypt-user-input------------------------------
 void F_EncryptPassword(){
   //uncompleted
 
@@ -718,6 +710,7 @@ void F_EncryptPassword(){
   
   delay(10000);
 }
+//---End-of-Encrypt-user-input----------------------------
 //----Failed-Attempts-Check------------------
 void F_fail_count_check(){
   //only account for keypad
@@ -729,7 +722,6 @@ void F_fail_count_check(){
   }
 }
 //----END-of-Failed-Attempts-Check----------
-
 //-----Start-of-Telegram-Bot----------------------------------
 void initilize_telegram_Bot(){
   //completed
@@ -836,10 +828,14 @@ void readRFID(void){
     if(isSet==true){
       F_Arm_Delay();
       //send update to Telegram
+      start_WiFi();
       bot.sendMessage(CHAT_IDTEST, "Armed by RFID");
+      end_WiFi();
     }
     else{
+      start_WiFi();
       bot.sendMessage(CHAT_IDTEST, "Disarmed by RFID");
+      end_WiFi();
       F_Clear_Alarm_Display();
       alarmAlirtsent=false;
     }
@@ -936,10 +932,60 @@ void writeLog(fs::FS &fs, const char * path, const char * message){
     file.close();
 }
 //---END-of-Append-data------------------------------
-
+//---LCD-init-settings-------------------------------
 void initilize_LCD(){
   lcd.init();
   lcd.backlight();
   lcd.noBlink();
   lcd.noCursor();
+}
+//---END-of-LCD-init-settings-------------------------
+//---init-State_leds---------------------------------
+void initilize_LEDS(){
+  //faceplate leds HIGH=active
+  pinMode(state_led,OUTPUT);
+  pinMode(alarm_led,OUTPUT);
+
+  digitalWrite(state_led,LOW);
+  digitalWrite(alarm_led,LOW);
+}
+//---END-of-init-State_leds----------------------------
+//---update-state-leds--------------------------------
+void update_leds(){
+  if(isSet){
+    digitalWrite(state_led,HIGH);
+  }
+  else{
+    digitalWrite(state_led,LOW);      
+  }
+  if(isSet && is_Alarm){
+    digitalWrite(alarm_led,HIGH);
+  }
+  else{
+    digitalWrite(alarm_led,LOW);
+  }
+}
+//---END-of-update-state-leds--------------------------
+//---get-telegram-messages-----------------------------
+void check_telegram(){
+  if (millis() - bot_lasttime > BOT_MTBS){  //if over the time past since last check
+    start_WiFi();
+    Serial.println("Checking for Telegram message");
+    int numNewMessages = bot.getUpdates(bot.last_message_received + 1); 
+
+    while (numNewMessages){
+      Serial.println("got response");
+      handleNewMessages(numNewMessages);
+      numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+    }
+    bot_lasttime = millis();
+    end_WiFi();
+  }
+}
+//---END-of-get-telegram-messages--------------------
+void reset_log_flag(){
+  if(!isSet){
+    //system unset reset log 
+    isLogSaved=false;
+  }
 }
