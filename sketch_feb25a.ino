@@ -444,6 +444,8 @@ void initilize_RTC(){
 //-----END-Of-SetUp-Of-RTC-&-manual-adjust----------------------
 //rework 
 void F_Password_input(){
+  //needs a refacoter to return to a char array till a return carrage? where then checked
+  //current metiod is not scalable or reusable 
   char key = keypad.getKey();
 
   lcd.setCursor(0,2);
