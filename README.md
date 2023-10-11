@@ -1,8 +1,8 @@
 # HomeAlarmProject
 Final Video demo
+
 https://www.youtube.com/watch?v=XLqY_yO-VsY&list=PLK33Tw0bX_mvtG4fhFxiVRfSXJBcMNtgZ&index=11
 
-https://fuscior.github.io/HomeAlarmProject/index.html
 www.brennan.gg
 
 Year3 SETU Project:
@@ -37,3 +37,5 @@ esp_now.h: github.com/espressif/esp-idf/blob/master/components/esp_wifi/include/
 WiFiClientSecure.h: github.com/espressif/arduino-esp32/blob/master/libraries/WiFiClientSecure/src/WiFiClientSecure.h
 UniversalTelegramBot.h: github.com/witnessmenow/Universal-Arduino-Telegram-Bot
 MFRC522.h: github.com/miguelbalboa/rfid
+
+https://fuscior.github.io/HomeAlarmProject/index.html
